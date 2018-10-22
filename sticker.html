@@ -47,7 +47,6 @@
 <div class="paper">
     <div id="container">
     </div>
-    <div class="export" onclick="getExport()">Export</div>
 </div>
 <div class="img_roll">
     <img class="selective" data-id="1" data-width="160" data-height="100" onclick="changeBackground('./assets/giants.jpg')" src="./assets/giants.jpg">
@@ -85,86 +84,99 @@
     stage.add(layer);
 
     function update(activeAnchor) {
-        var group = activeAnchor.getParent();
-        var topLeft = group.get('.topLeft')[0];
-        var topRight = group.get('.topRight')[0];
-        var bottomRight = group.get('.bottomRight')[0];
-        var bottomLeft = group.get('.bottomLeft')[0];
-        var image = group.get('.Image')[0];
-        var anchorX = activeAnchor.getX();
-        var anchorY = activeAnchor.getY();
-        var topLeftY = topLeft.getY();
+        var self = this,
+                group = activeAnchor.getParent(),
+                topLeft = group.get('.topLeft')[0],
+                topRight = group.get('.topRight')[0],
+                bottomRight = group.get('.bottomRight')[0],
+                bottomLeft = group.get('.bottomLeft')[0],
+                outterLine = group.get('.outterLine')[0],
+                image = group.get('.Image')[0],
+                anchorX = activeAnchor.getX(),
+                topLeftY = topLeft.getY(),
 
-        var aspectRatio = group.getChildren()[0].attrs.aspectRatio;
+                aspectRatio = group.getChildren()[0].attrs.aspectRatio,
 
-        var org_w = group.getChildren()[0].attrs.default_w;
+                org_w = group.getChildren()[0].attrs.default_w,
+                org_h = group.getChildren()[0].attrs.default_h,
 
-        var width = topRight.getX() - topLeft.getX() +10;//右上角图片坐标对主图x轴缺10，这里计算宽度加回来
+                width = topRight.getX() - topLeft.getX(),
+                diff = width / org_w > 0.5 ? width / org_w : 0.5,
+                newY = width / aspectRatio,
 
-        var diff = width / org_w > 1 ? width / org_w : 1;
-
-        var newY = width / aspectRatio;
-
-        if (diff> 1){
-            topLeft.setY(anchorY +10);//右上角图片左上角坐标对主图亚轴缺10，补回
-            bottomRight.setX(anchorX);
-            bottomLeft.setY(topLeftY + newY-10);//主图左上角坐标Y+宽度/高宽比得到的左下角坐标，初始-10的Y轴调整被重置了，因此再-10
+                structure = {
+                    topLeftX: topLeft.getX()+10,
+                    topLeftY: topLeftY+10,
+                    bottomRightX: org_w * diff + topLeft.getX() + 10,
+                    bottomRightY: org_h * diff + topLeftY+10
+                };
+            bottomLeft.setY(topLeftY + newY);
+            topRight.setX(anchorX);
             bottomRight.setY(topLeftY + newY);
+            bottomRight.setX(anchorX);
 
+            // console.log(self.MarkY + " Y " + activeAnchor.attrs.y);
+            // console.log(self.MarkX + " X " + activeAnchor.attrs.x);
+            if (diff == 0.5){
+                if (self.MarkX >= activeAnchor.attrs.x) {
+                    activeAnchor.setAttr('draggable', false);
+                }
+                self.MarkX = activeAnchor.attrs.x;
+                self.MarkY = activeAnchor.attrs.y;
+                bottomRight.setY(structure.bottomRightY -10);
+                bottomRight.setX(structure.bottomRightX -10);
+            }
             image.scale({x: diff, y: diff});
-            image.position(topLeft.position());
+            image.position({x: topLeft.getX()+10, y: topLeftY+10});
+            outterLine.setAttr("points", [//从左上右上右下左下左上画一圈
+                structure.topLeftX, structure.topLeftY,
+                structure.bottomRightX, structure.topLeftY,
+                structure.bottomRightX, structure.bottomRightY,
+                structure.topLeftX, structure.bottomRightY,
+                structure.topLeftX, structure.topLeftY
+            ]);
             group.moveToTop();
-        }else{
-            activeAnchor.setAttr('draggable', false);
-        }
 
     };
 
     function addAnchor(group, x, y, name) {
-        var stage = group.getStage();
-        var layer = group.getLayer();
-        var bottomLeft = group.get('.bottomLeft')[0];
-        var hypotenuse = Math.sqrt(Math.pow(20, 2) + Math.pow(20, 2));
-        var sin = 20 / hypotenuse;
-        var cos = 20 / hypotenuse;
+        var layer = group.getLayer(),
+                self = this;
 
-        var anchor = new Konva.Image({
-            x: x,
-            y: y,
-            width: 20,
-            height: 20,
-            name: name,
-            draggable: true,
-            dragBoundFunc: function (pos) {
-                console.log(pos.x - this.getAbsolutePosition().x);
-                return {
-                   x: pos.x,
-                    y: this.getAbsolutePosition().y
-                }
-            }
-        });
-        var imageObj = new Image();
-        imageObj.onload = function() {
-            anchor.setAttr('image', imageObj);
-            layer.draw();
-        };
-        imageObj.src = "./assets/resize.png";
+            var anchor = new Konva.Image({
+                x: x,
+                y: y,
+                width: 20,
+                height: 20,
+                stroke: 'transparent',
+                strokeWidth: 25,
+                name: name,
+                draggable: true
+            });
+            var imageObj = new Image();
+            imageObj.onload = function() {
+                anchor.setAttr('image', imageObj);
+                layer.draw();
+            };
+            imageObj.src = 'https://pages.c-ctrip.com/you/stickyboard/resize.png';
 
-        anchor.on('dragmove', function() {
-            update(this);
-            layer.draw();
-        });
-        anchor.on('mousedown touchstart', function() {
-            this.setAttr('draggable', true);
-            group.setDraggable(false);
-            this.moveToTop();
-        });
-        anchor.on('dragend', function() {
-            group.setDraggable(true);
-            layer.draw();
-        });
+            anchor.on('dragmove', function() {
+                self.update(this);
+                layer.draw();
+            });
+            anchor.on('mousedown touchstart', function() {
+                this.setAttr('draggable', true);
+                group.setDraggable(false);
+                this.moveToTop();
+                layer.draw();
+            });
+            anchor.on('dragend', function() {
+                this.setAttr('draggable', true);
+                group.setDraggable(true);
+                layer.draw();
+            });
 
-        group.add(anchor);
+            group.add(anchor);
     }
 
     function addStaticAnchor(group, x, y, name){
@@ -178,89 +190,110 @@
     }
 
     function addRemoveAnchor(group, x, y, name){
-        var anchor = new Konva.Image({
-            x: x,
-            y: y,
-            width: 20,
-            height: 20,
-            name: name
-        });
-        anchor.on("tap", function (event) {
-            group.setAttrs({
-                visible: false
+        var self = this;
+            var anchor = new Konva.Image({
+                x: x,
+                y: y,
+                width: 20,
+                height: 20,
+                stroke: 'transparent',
+                strokeWidth: 20,
+                name: name
             });
-            layer.draw();
-        });
-        var imageObj = new Image();
-        imageObj.onload = function() {
-            anchor.image(imageObj);
-            layer.draw();
-        };
-        imageObj.src = "./assets/delete.png";
+            anchor.on("tap", function (event) {
+                group.setAttrs({
+                    visible: false
+                });
+                self.layer.draw();
+            });
+            var imageObj = new Image();
+            imageObj.onload = function() {
+                anchor.image(imageObj);
+                self.layer.draw();
+            };
+            imageObj.src = './assets/delete.png';
 
-        group.add(anchor);
+            group.add(anchor);
     }
 
     function addGroup(_src, _width, _height){
         var self = this;
         var tempImg = new Konva.Image({
-            width: _width,
-            height: _height,
-            aspectRatio: _width/_height,
-            default_w: _width,
-            name: "Image"
-        });
-        var group = new Konva.Group({
-            x: WIDTH/2 - _width/2 + (Math.random() * 10 + 5),
-            y: HEIGHT/2 -_height/2-101 + (Math.random() * 10 + 5),
-            draggable: true
-        });
-        layer.add(group);
-        group.add(tempImg);
-        addStaticAnchor(group, 0, 0, 'topLeft');
-        addStaticAnchor(group, _width, _height, 'bottomRight');
-        addRemoveAnchor(group, -10, _height-10, 'bottomLeft');
-        addAnchor(group, _width-10, -10, 'topRight');
-        group.on("dragstart", function() {
-            this.moveToTop();
-            layer.draw();
-        });
-        group.on("tap", function () {
-            self.getExport(this.index);
-//            self.resizer.show();
-//            this.add(resizer);
-//            resizer.attachTo(this.get('.Image')[0]);
-//            layer.draw();
-        });
+                width: _width,
+                height: _height,
+                aspectRatio: _width/_height,
+                default_w: _width,
+                default_h: _height,
+                name: "Image"
+            });
+            var group = new Konva.Group({
+                x: self.WIDTH/2 - _width/2 + (Math.random() * 10 + 5),
+                y: self.HEIGHT/2 -_height/2-101 + (Math.random() * 10 + 5),
+                draggable: true
+            });
+            self.layer.add(group);
+            group.add(tempImg);
 
-        var imageObj = new Image();
-        imageObj.onload = function() {
-            tempImg.image(imageObj);
-            layer.draw();
-        };
-        imageObj.src = _src;
-        this.getExport(group.index);
+            var outterLine = new Konva.Line({
+                points: [0, 0, _width, 0, _width, _height, 0, _height, 0, 0],
+                stroke: '#4f4aa0',
+                strokeWidth: 2,
+                lineJoin: 'round',
+                dash: [10, 4],
+                name: 'outterLine'
+            });
+            group.add(outterLine);
+
+            this.addRemoveAnchor(group, -10, -10, 'topLeft');
+            this.addStaticAnchor(group, _width, 0, 'topRight');
+            this.addStaticAnchor(group, 0, _height, 'bottomLeft');
+            this.addAnchor(group, _width-10, _height-10, 'bottomRight');
+
+            group.on("dragstart", function() {
+                self.toggleHandlers(this.index);
+                this.moveToTop();
+                self.layer.draw();
+            });
+            group.on("tap", function () {
+                self.toggleHandlers(this.index);
+                this.moveToTop();
+                self.layer.draw();
+            });
+
+            var imageObj = new Image();
+            imageObj.onload = function() {
+                tempImg.image(imageObj);
+                self.layer.draw();
+            };
+            // imageObj.crossOrigin = "*";
+            imageObj.src = _src;
+
+            this.toggleHandlers(group.index);
     }
 
     function changeBackground(_src) {
         backgroundImage.src= _src;
     }
 
-    function getExport(activeGroup) {
-        layer.children.forEach(function (group) {
-            if(group.name() !== 'background'){
-                if(group.index === activeGroup){
-                    group.get('.topRight')[0].setAttr('visible', true);
-                    group.get('.bottomLeft')[0].setAttr('visible', true);
-                    layer.draw();
-                }else{
-                    group.get('.topRight')[0].setAttr('visible', false);
-                    group.get('.bottomLeft')[0].setAttr('visible', false);
-                    layer.draw();
+
+    function  toggleHandlers(activeGroup) {
+            var self = this;
+            this.layer.children.forEach(function (group) {
+                if(group.name() !== 'background'){
+                    if(group.index === activeGroup){
+                        group.get('.topLeft')[0].setAttr('visible', true);
+                        group.get('.bottomRight')[0].setAttr('visible', true);
+                        group.get('.outterLine')[0].setAttr('visible', true);
+                        self.layer.draw();
+                    }else{
+                        group.get('.topLeft')[0].setAttr('visible', false);
+                        group.get('.bottomRight')[0].setAttr('visible', false);
+                        group.get('.outterLine')[0].setAttr('visible', false);
+                        self.layer.draw();
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
 
 </script>
 
