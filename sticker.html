@@ -1,0 +1,268 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+     <script src="konva.min.js"></script>
+    <!--<script src="https://cdn.bootcss.com/konva/1.7.6/konva.min.js"></script>-->
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Konva Image Resize Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #F0F0F0;
+            display: flex;
+            flex-direction: column;
+        }
+        .paper{
+            flex: 1;
+            position: relative;
+        }
+        .img_roll{
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+        }
+        .selective{
+            object-fit: cover;
+            flex: 1;
+            overflow: hidden;
+            height: 80px;
+        }
+        .export{
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 8px;
+            background-color: cadetblue;
+            border-radius: 5px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<div class="paper">
+    <div id="container">
+    </div>
+    <div class="export" onclick="getExport()">Export</div>
+</div>
+<div class="img_roll">
+    <img class="selective" data-id="1" data-width="160" data-height="100" onclick="changeBackground('./assets/giants.jpg')" src="./assets/giants.jpg">
+    <img class="selective" data-id="1" data-width="160" data-height="100" onclick="addGroup('./assets/giants.jpg', 160, 100)" src="./assets/giants.jpg">
+    <img class="selective" data-id="2" data-width="100" data-height="100" onclick="addGroup('./assets/factory.jpg', 100, 100)" src="./assets/factory.jpg">
+    <img class="selective" data-id="0" data-width="160" data-height="100" onclick="addGroup('./assets/nighty.jpg', 160, 100)" src="./assets/nighty.jpg">
+</div>
+<script>
+    var WIDTH = window.innerWidth;
+    var HEIGHT = window.innerHeight;
+
+    var stage = new Konva.Stage({
+        container: 'container',
+        width: WIDTH,
+        height: HEIGHT-80
+    });
+
+    var layer = new Konva.Layer();
+
+    var background = new Konva.Image({
+        x: 0,
+        y: 0,
+        width: WIDTH,
+        height: HEIGHT-80,
+        name: "background"
+    });
+    var backgroundImage = new Image();
+    backgroundImage.onload = function () {
+        background.image(backgroundImage);
+        layer.draw();
+    };
+    backgroundImage.src="./assets/darth-vader.jpg";
+
+    layer.add(background);
+    stage.add(layer);
+
+    function update(activeAnchor) {
+        var group = activeAnchor.getParent();
+        var topLeft = group.get('.topLeft')[0];
+        var topRight = group.get('.topRight')[0];
+        var bottomRight = group.get('.bottomRight')[0];
+        var bottomLeft = group.get('.bottomLeft')[0];
+        var image = group.get('.Image')[0];
+        var anchorX = activeAnchor.getX();
+        var anchorY = activeAnchor.getY();
+        var topLeftY = topLeft.getY();
+
+        var aspectRatio = group.getChildren()[0].attrs.aspectRatio;
+
+        var org_w = group.getChildren()[0].attrs.default_w;
+
+        var width = topRight.getX() - topLeft.getX() +10;//右上角图片坐标对主图x轴缺10，这里计算宽度加回来
+
+        var diff = width / org_w > 1 ? width / org_w : 1;
+
+        var newY = width / aspectRatio;
+
+        if (diff> 1){
+            topLeft.setY(anchorY +10);//右上角图片左上角坐标对主图亚轴缺10，补回
+            bottomRight.setX(anchorX);
+            bottomLeft.setY(topLeftY + newY-10);//主图左上角坐标Y+宽度/高宽比得到的左下角坐标，初始-10的Y轴调整被重置了，因此再-10
+            bottomRight.setY(topLeftY + newY);
+
+            image.scale({x: diff, y: diff});
+            image.position(topLeft.position());
+            group.moveToTop();
+        }else{
+            activeAnchor.setAttr('draggable', false);
+        }
+
+    };
+
+    function addAnchor(group, x, y, name) {
+        var stage = group.getStage();
+        var layer = group.getLayer();
+        var bottomLeft = group.get('.bottomLeft')[0];
+        var hypotenuse = Math.sqrt(Math.pow(20, 2) + Math.pow(20, 2));
+        var sin = 20 / hypotenuse;
+        var cos = 20 / hypotenuse;
+
+        var anchor = new Konva.Image({
+            x: x,
+            y: y,
+            width: 20,
+            height: 20,
+            name: name,
+            draggable: true,
+            dragBoundFunc: function (pos) {
+                console.log(pos.x - this.getAbsolutePosition().x);
+                return {
+                   x: pos.x,
+                    y: this.getAbsolutePosition().y
+                }
+            }
+        });
+        var imageObj = new Image();
+        imageObj.onload = function() {
+            anchor.setAttr('image', imageObj);
+            layer.draw();
+        };
+        imageObj.src = "./assets/resize.png";
+
+        anchor.on('dragmove', function() {
+            update(this);
+            layer.draw();
+        });
+        anchor.on('mousedown touchstart', function() {
+            this.setAttr('draggable', true);
+            group.setDraggable(false);
+            this.moveToTop();
+        });
+        anchor.on('dragend', function() {
+            group.setDraggable(true);
+            layer.draw();
+        });
+
+        group.add(anchor);
+    }
+
+    function addStaticAnchor(group, x, y, name){
+        var anchor = new Konva.Circle({
+            x: x,
+            y: y,
+            name: name,
+            draggable: false
+        });
+        group.add(anchor);
+    }
+
+    function addRemoveAnchor(group, x, y, name){
+        var anchor = new Konva.Image({
+            x: x,
+            y: y,
+            width: 20,
+            height: 20,
+            name: name
+        });
+        anchor.on("tap", function (event) {
+            group.setAttrs({
+                visible: false
+            });
+            layer.draw();
+        });
+        var imageObj = new Image();
+        imageObj.onload = function() {
+            anchor.image(imageObj);
+            layer.draw();
+        };
+        imageObj.src = "./assets/delete.png";
+
+        group.add(anchor);
+    }
+
+    function addGroup(_src, _width, _height){
+        var self = this;
+        var tempImg = new Konva.Image({
+            width: _width,
+            height: _height,
+            aspectRatio: _width/_height,
+            default_w: _width,
+            name: "Image"
+        });
+        var group = new Konva.Group({
+            x: WIDTH/2 - _width/2 + (Math.random() * 10 + 5),
+            y: HEIGHT/2 -_height/2-101 + (Math.random() * 10 + 5),
+            draggable: true
+        });
+        layer.add(group);
+        group.add(tempImg);
+        addStaticAnchor(group, 0, 0, 'topLeft');
+        addStaticAnchor(group, _width, _height, 'bottomRight');
+        addRemoveAnchor(group, -10, _height-10, 'bottomLeft');
+        addAnchor(group, _width-10, -10, 'topRight');
+        group.on("dragstart", function() {
+            this.moveToTop();
+            layer.draw();
+        });
+        group.on("tap", function () {
+            self.getExport(this.index);
+//            self.resizer.show();
+//            this.add(resizer);
+//            resizer.attachTo(this.get('.Image')[0]);
+//            layer.draw();
+        });
+
+        var imageObj = new Image();
+        imageObj.onload = function() {
+            tempImg.image(imageObj);
+            layer.draw();
+        };
+        imageObj.src = _src;
+        this.getExport(group.index);
+    }
+
+    function changeBackground(_src) {
+        backgroundImage.src= _src;
+    }
+
+    function getExport(activeGroup) {
+        layer.children.forEach(function (group) {
+            if(group.name() !== 'background'){
+                if(group.index === activeGroup){
+                    group.get('.topRight')[0].setAttr('visible', true);
+                    group.get('.bottomLeft')[0].setAttr('visible', true);
+                    layer.draw();
+                }else{
+                    group.get('.topRight')[0].setAttr('visible', false);
+                    group.get('.bottomLeft')[0].setAttr('visible', false);
+                    layer.draw();
+                }
+            }
+        });
+    }
+
+</script>
+
+</body>
+</html>
